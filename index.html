@@ -30,7 +30,7 @@
       <header class="hero">
         <span class="eyebrow">Dashboard academico</span>
         <h1>Biblioteca Virtual Universitaria</h1>
-        <p>Panel interactivo con metricas, catalogo y un bibliotecario IA que responde usando el PDF de ejemplo o uno que subas.</p>
+        <p>Panel interactivo con metricas, catalogo y un bibliotecario IA que se activa cuando subes un PDF.</p>
       </header>
 
       <section class="kpis">
@@ -100,26 +100,29 @@
               <div class="panel-top">
                 <div>
                   <span class="eyebrow">Documento base</span>
-                  <h3 id="doc-title">Guia del Repositorio Digital Universitario</h3>
+                  <h3 id="doc-title">Ningun documento cargado</h3>
                 </div>
                 <a
                   id="docLink"
-                  class="ghost-link"
-                  href="assets/guia-biblioteca-virtual.pdf"
+                  class="ghost-link is-disabled"
+                  href="#"
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-disabled="true"
                 >
                   Abrir PDF
                 </a>
               </div>
 
-              <p id="doc-description" class="muted"></p>
+              <p id="doc-description" class="muted">
+                Sube un archivo PDF para activar la vista previa y el chat contextual.
+              </p>
 
               <div class="upload-panel">
                 <div>
                   <span class="eyebrow">Cargador PDF</span>
                   <p id="uploadStatus" class="muted">
-                    Usa el PDF de ejemplo o sube uno propio desde tu navegador.
+                    Sube un archivo PDF para activar el visor y el analisis del documento.
                   </p>
                 </div>
 
@@ -133,28 +136,28 @@
               </div>
 
               <div class="document-meta">
-                <span id="doc-pages">1 pagina</span>
-                <span id="doc-topic">Repositorio digital</span>
+                <span id="doc-pages">0 paginas</span>
+                <span id="doc-topic">Esperando PDF</span>
                 <span>Contexto enviado a Gemini</span>
               </div>
 
               <div class="pdf-frame">
                 <div class="pdf-toolbar">
                   <button id="prevPageBtn" class="pdf-nav-btn" type="button">Anterior</button>
-                  <span id="pdfPageIndicator" class="pdf-page-indicator">Pagina 1 de 1</span>
+                  <span id="pdfPageIndicator" class="pdf-page-indicator">Sin vista previa</span>
                   <button id="nextPageBtn" class="pdf-nav-btn" type="button">Siguiente</button>
                 </div>
 
                 <div id="pdfCanvasWrap" class="pdf-canvas-wrap">
-                  <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+                  <canvas id="pdfCanvas" class="pdf-canvas hidden"></canvas>
                   <div id="pdfLoadingState" class="pdf-loading-state">
-                    Cargando vista previa del PDF...
+                    Sube un PDF para ver la vista previa.
                   </div>
                   <p id="pdfErrorState" class="pdf-error-state hidden">
                     No se pudo generar la vista previa.
                     <a
                       id="pdfFallbackLink"
-                      href="assets/guia-biblioteca-virtual.pdf"
+                      href="#"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -176,7 +179,7 @@
                   <span class="eyebrow">Chat contextual</span>
                   <h3>Consulta al Bibliotecario Inteligente</h3>
                 </div>
-                <span id="contextBadge" class="context-badge">PDF de ejemplo</span>
+                <span id="contextBadge" class="context-badge">Sin PDF</span>
               </div>
 
               <div id="chatBox" class="chat-box"></div>
@@ -185,13 +188,14 @@
                 <input
                   type="text"
                   id="chatInput"
-                  placeholder="Ej: Que dice la guia sobre prestamos temporales?"
+                  placeholder="Sube un PDF para habilitar el chat"
+                  disabled
                 />
-                <button id="sendBtn">Enviar</button>
+                <button id="sendBtn" disabled>Enviar</button>
               </div>
 
               <p class="muted">
-                La respuesta se genera desde una funcion segura en Netlify usando las metricas del dashboard y el texto del PDF.
+                La respuesta se genera desde una funcion segura en Netlify usando las metricas del dashboard y el texto del PDF que subas.
               </p>
             </section>
           </div>

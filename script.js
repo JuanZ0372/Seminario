@@ -8,23 +8,18 @@ const catalog = [
   { titulo: 'Don Quijote', autor: 'Cervantes', estado: 'Disponible', formato: 'PDF' }
 ];
 
-const defaultDocumentContext = {
-  title: 'Guia del Repositorio Digital Universitario',
-  fileUrl: 'assets/guia-biblioteca-virtual.pdf',
-  pages: 1,
-  topic: 'Uso del repositorio y prestamos digitales',
-  summary: 'Guia institucional con reglas de acceso, colecciones prioritarias y uso de materiales digitales.',
+const emptyDocumentContext = {
+  title: 'Ningun documento cargado',
+  fileUrl: '',
+  pages: 0,
+  topic: 'Esperando PDF',
+  summary: 'Sube un archivo PDF para activar la vista previa y el chat contextual.',
   highlights: [
-    'Acceso disponible 24/7 con credenciales institucionales.',
-    'Colecciones clave: Ingenieria, Medicina, Artes, Ciencias Sociales y Derecho.',
-    'Los PDF se descargan para estudio personal respetando derechos de autor.',
-    'Los prestamos temporales de eBooks duran 7 dias y permiten una renovacion.',
-    'El buscador recomienda consultar por titulo, autor o ISBN.',
-    'Para estudiantes de primer ingreso se sugieren textos introductorios.',
-    'Soporte academico: biblioteca.virtual@universidad.edu.sv.'
+    'La lectura del documento empezara solo cuando subas un PDF.',
+    'Hasta entonces no se enviara ningun texto a la IA.'
   ],
-  sourceLabel: 'PDF de ejemplo',
-  uploadStatus: 'Usa el PDF de ejemplo o sube uno propio desde tu navegador.'
+  sourceLabel: 'Sin PDF',
+  uploadStatus: 'Sube un archivo PDF para activar el visor y el analisis del documento.'
 };
 
 const MAX_CONTEXT_TEXT = 12000;
@@ -35,7 +30,7 @@ if (window.pdfjsLib) {
 }
 
 let activeDocumentUrl = null;
-let documentContext = createDocumentContext(defaultDocumentContext);
+let documentContext = createDocumentContext(emptyDocumentContext);
 const pdfViewerState = {
   pdfDoc: null,
   currentPage: 1,
@@ -132,6 +127,10 @@ function createDocumentContext(source = {}) {
   };
 }
 
+function hasActiveDocument() {
+  return Boolean(documentContext.fileUrl);
+}
+
 function setActiveDocumentUrl(url, isObjectUrl = false) {
   if (activeDocumentUrl && activeDocumentUrl !== url) {
     URL.revokeObjectURL(activeDocumentUrl);
@@ -155,6 +154,17 @@ function setPdfViewerMessage(message, isError = false) {
   loadingState.classList.toggle('hidden', isError);
   errorState.classList.toggle('hidden', !isError);
   canvas.classList.toggle('hidden', true);
+}
+
+function setChatAvailability(enabled) {
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  chatInput.disabled = !enabled;
+  sendBtn.disabled = !enabled;
+  chatInput.placeholder = enabled
+    ? 'Ej: Que dice el PDF sobre prestamos temporales?'
+    : 'Sube un PDF para habilitar el chat';
 }
 
 function updatePdfControls() {
@@ -379,8 +389,13 @@ function renderDocumentContext() {
   document.getElementById('doc-description').textContent = documentContext.summary;
   document.getElementById('doc-pages').textContent = formatPageLabel(documentContext.pages);
   document.getElementById('doc-topic').textContent = documentContext.topic;
-  document.getElementById('docLink').href = documentContext.fileUrl;
-  document.getElementById('pdfFallbackLink').href = documentContext.fileUrl;
+  const docLink = document.getElementById('docLink');
+  const fallbackLink = document.getElementById('pdfFallbackLink');
+
+  docLink.href = documentContext.fileUrl || '#';
+  fallbackLink.href = documentContext.fileUrl || '#';
+  docLink.classList.toggle('is-disabled', !hasActiveDocument());
+  docLink.setAttribute('aria-disabled', String(!hasActiveDocument()));
   document.getElementById('contextBadge').textContent = documentContext.sourceLabel;
   document.getElementById('uploadStatus').textContent = documentContext.uploadStatus;
 
@@ -394,7 +409,19 @@ function renderDocumentContext() {
     highlights.appendChild(div);
   });
 
-  loadPdfPreview(documentContext.fileUrl);
+  setChatAvailability(hasActiveDocument());
+
+  if (hasActiveDocument()) {
+    loadPdfPreview(documentContext.fileUrl);
+    return;
+  }
+
+  pdfViewerState.loadRequestId += 1;
+  pdfViewerState.pdfDoc = null;
+  pdfViewerState.currentPage = 1;
+  pdfViewerState.totalPages = 0;
+  updatePdfControls();
+  setPdfViewerMessage('Sube un PDF para ver la vista previa.');
 }
 
 async function extractPdfData(file) {
@@ -458,6 +485,10 @@ function addMessage(text, sender) {
 }
 
 function buildAIContext() {
+  if (!hasActiveDocument()) {
+    return null;
+  }
+
   return {
     liveMetrics: liveData,
     catalogSnapshot: catalog,
@@ -473,6 +504,10 @@ function buildAIContext() {
 }
 
 async function askAI(question) {
+  if (!hasActiveDocument()) {
+    throw new Error('Primero sube un PDF para activar el analisis del documento.');
+  }
+
   let res;
 
   try {
@@ -527,7 +562,7 @@ function initChat() {
   const chatInput = document.getElementById('chatInput');
 
   addMessage(
-    `Documento activo: ${documentContext.title}. Puedes preguntar por el contenido del PDF o subir otro archivo para cambiar el contexto.`,
+    'No hay ningun PDF activo. Sube un archivo para habilitar la lectura y las consultas con IA.',
     'assistant'
   );
 
