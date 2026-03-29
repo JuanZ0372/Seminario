@@ -6,6 +6,7 @@
   <title>Biblioteca Virtual Universitaria</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -29,7 +30,7 @@
       <header class="hero">
         <span class="eyebrow">Dashboard academico</span>
         <h1>Biblioteca Virtual Universitaria</h1>
-        <p>Panel interactivo con metricas, catalogo y un bibliotecario IA que responde con el contexto de un PDF incrustado.</p>
+        <p>Panel interactivo con metricas, catalogo y un bibliotecario IA que responde usando el PDF de ejemplo o uno que subas.</p>
       </header>
 
       <section class="kpis">
@@ -114,6 +115,23 @@
 
               <p id="doc-description" class="muted"></p>
 
+              <div class="upload-panel">
+                <div>
+                  <span class="eyebrow">Cargador PDF</span>
+                  <p id="uploadStatus" class="muted">
+                    Usa el PDF de ejemplo o sube uno propio desde tu navegador.
+                  </p>
+                </div>
+
+                <label class="upload-btn" for="pdfUpload">Subir PDF</label>
+                <input
+                  id="pdfUpload"
+                  class="pdf-upload-input"
+                  type="file"
+                  accept="application/pdf"
+                />
+              </div>
+
               <div class="document-meta">
                 <span id="doc-pages">1 pagina</span>
                 <span id="doc-topic">Repositorio digital</span>
@@ -129,7 +147,12 @@
                 >
                   <p>
                     Tu navegador no soporta la vista previa del PDF.
-                    <a href="assets/guia-biblioteca-virtual.pdf" target="_blank" rel="noopener noreferrer">
+                    <a
+                      id="pdfFallbackLink"
+                      href="assets/guia-biblioteca-virtual.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       Abrir documento
                     </a>
                   </p>
@@ -148,7 +171,7 @@
                   <span class="eyebrow">Chat contextual</span>
                   <h3>Consulta al Bibliotecario Inteligente</h3>
                 </div>
-                <span class="context-badge">PDF cargado</span>
+                <span id="contextBadge" class="context-badge">PDF de ejemplo</span>
               </div>
 
               <div id="chatBox" class="chat-box"></div>

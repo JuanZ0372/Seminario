@@ -8,7 +8,7 @@ const catalog = [
   { titulo: 'Don Quijote', autor: 'Cervantes', estado: 'Disponible', formato: 'PDF' }
 ];
 
-const documentContext = {
+const defaultDocumentContext = {
   title: 'Guia del Repositorio Digital Universitario',
   fileUrl: 'assets/guia-biblioteca-virtual.pdf',
   pages: 1,
@@ -22,17 +22,121 @@ const documentContext = {
     'El buscador recomienda consultar por titulo, autor o ISBN.',
     'Para estudiantes de primer ingreso se sugieren textos introductorios.',
     'Soporte academico: biblioteca.virtual@universidad.edu.sv.'
-  ]
+  ],
+  sourceLabel: 'PDF de ejemplo',
+  uploadStatus: 'Usa el PDF de ejemplo o sube uno propio desde tu navegador.'
 };
 
-documentContext.extractedText = [
-  documentContext.title,
-  documentContext.summary,
-  ...documentContext.highlights
-].join(' ');
+const MAX_CONTEXT_TEXT = 12000;
+
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+let activeDocumentUrl = null;
+let documentContext = createDocumentContext(defaultDocumentContext);
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function normalizeWhitespace(text = '') {
+  return text.replace(/\u0000/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function clampText(text, maxLength) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trim()}...`;
+}
+
+function shortenText(text, maxLength) {
+  return clampText(normalizeWhitespace(text), maxLength);
+}
+
+function buildSummaryFromText(text) {
+  const clean = normalizeWhitespace(text);
+  if (!clean) {
+    return 'No hay un resumen disponible para este PDF.';
+  }
+
+  return shortenText(clean, 220);
+}
+
+function buildHighlightsFromText(text) {
+  const clean = text.replace(/\r/g, '\n');
+  const candidates = [
+    ...clean.split(/\n+/),
+    ...clean.split(/(?<=[.!?])\s+/)
+  ];
+  const highlights = [];
+  const seen = new Set();
+
+  candidates.forEach((candidate) => {
+    const value = shortenText(candidate, 180);
+    const key = value.toLowerCase();
+
+    if (value.length < 35 || seen.has(key) || highlights.length >= 5) {
+      return;
+    }
+
+    seen.add(key);
+    highlights.push(value);
+  });
+
+  return highlights;
+}
+
+function formatPageLabel(totalPages) {
+  return `${totalPages} ${totalPages === 1 ? 'pagina' : 'paginas'}`;
+}
+
+function humanizeFileName(fileName) {
+  return fileName.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim();
+}
+
+function createDocumentContext(source = {}) {
+  const fallbackText = [
+    source.title || '',
+    source.summary || '',
+    ...(source.highlights || [])
+  ].join(' ');
+  const extractedText = clampText(
+    normalizeWhitespace(source.extractedText || fallbackText),
+    MAX_CONTEXT_TEXT
+  );
+  const highlights = source.highlights?.length
+    ? source.highlights.map((item) => shortenText(item, 180))
+    : buildHighlightsFromText(extractedText);
+
+  return {
+    title: source.title || 'Documento sin titulo',
+    fileUrl: source.fileUrl || '',
+    pages: Number.isFinite(source.pages) ? source.pages : 0,
+    topic: source.topic || 'Documento PDF',
+    summary: source.summary || buildSummaryFromText(extractedText),
+    highlights: highlights.length
+      ? highlights
+      : ['No se detectaron fragmentos de texto destacados en este documento.'],
+    extractedText,
+    sourceLabel: source.sourceLabel || 'PDF cargado',
+    uploadStatus: source.uploadStatus || 'PDF listo para consulta.'
+  };
+}
+
+function setActiveDocumentUrl(url, isObjectUrl = false) {
+  if (activeDocumentUrl && activeDocumentUrl !== url) {
+    URL.revokeObjectURL(activeDocumentUrl);
+  }
+
+  activeDocumentUrl = isObjectUrl ? url : null;
+}
+
+function updateDocumentContext(source, options = {}) {
+  documentContext = createDocumentContext(source);
+  setActiveDocumentUrl(documentContext.fileUrl, options.isObjectUrl);
+  renderDocumentContext();
 }
 
 function getLiveData() {
@@ -118,10 +222,13 @@ function renderCatalog(filter = '') {
 function renderDocumentContext() {
   document.getElementById('doc-title').textContent = documentContext.title;
   document.getElementById('doc-description').textContent = documentContext.summary;
-  document.getElementById('doc-pages').textContent = `${documentContext.pages} pagina`;
+  document.getElementById('doc-pages').textContent = formatPageLabel(documentContext.pages);
   document.getElementById('doc-topic').textContent = documentContext.topic;
   document.getElementById('docLink').href = documentContext.fileUrl;
+  document.getElementById('pdfFallbackLink').href = documentContext.fileUrl;
   document.getElementById('pdfViewer').data = documentContext.fileUrl;
+  document.getElementById('contextBadge').textContent = documentContext.sourceLabel;
+  document.getElementById('uploadStatus').textContent = documentContext.uploadStatus;
 
   const highlights = document.getElementById('documentHighlights');
   highlights.innerHTML = '';
@@ -132,6 +239,41 @@ function renderDocumentContext() {
     div.textContent = item;
     highlights.appendChild(div);
   });
+}
+
+async function extractPdfData(file) {
+  if (!window.pdfjsLib) {
+    throw new Error('No se pudo cargar el lector de PDF.');
+  }
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const pageTexts = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map((item) => item.str).join(' ');
+    pageTexts.push(pageText);
+  }
+
+  const extractedText = normalizeWhitespace(pageTexts.join('\n'));
+
+  if (!extractedText) {
+    return {
+      pages: pdf.numPages,
+      extractedText: '',
+      summary: 'El PDF se cargo, pero no contiene texto seleccionable para analizar.',
+      highlights: ['El archivo puede ser un escaneo o un PDF protegido sin texto extraible.']
+    };
+  }
+
+  return {
+    pages: pdf.numPages,
+    extractedText,
+    summary: buildSummaryFromText(extractedText),
+    highlights: buildHighlightsFromText(pageTexts.join('\n'))
+  };
 }
 
 function switchTabs() {
@@ -169,7 +311,7 @@ function buildAIContext() {
       topic: documentContext.topic,
       pages: documentContext.pages,
       highlights: documentContext.highlights,
-      extractedText: documentContext.extractedText
+      extractedText: documentContext.extractedText || 'No se pudo extraer texto del PDF actual.'
     }
   };
 }
@@ -198,7 +340,7 @@ function initChat() {
   const chatInput = document.getElementById('chatInput');
 
   addMessage(
-    `Documento cargado: ${documentContext.title}. Puedes preguntar por acceso, colecciones, prestamos digitales o soporte academico.`,
+    `Documento activo: ${documentContext.title}. Puedes preguntar por el contenido del PDF o subir otro archivo para cambiar el contexto.`,
     'assistant'
   );
 
@@ -210,7 +352,7 @@ function initChat() {
     chatInput.value = '';
     sendBtn.disabled = true;
 
-    const loadingMsg = addMessage('Consultando la guia y las metricas del dashboard...', 'assistant');
+    const loadingMsg = addMessage('Consultando el PDF activo y las metricas del dashboard...', 'assistant');
 
     try {
       const reply = await askAI(text);
@@ -231,6 +373,56 @@ function initChat() {
   });
 }
 
+function initPdfUpload() {
+  const pdfUpload = document.getElementById('pdfUpload');
+
+  pdfUpload.addEventListener('change', async (event) => {
+    const [file] = event.target.files || [];
+
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      document.getElementById('uploadStatus').textContent = 'Selecciona un archivo PDF valido.';
+      event.target.value = '';
+      return;
+    }
+
+    pdfUpload.disabled = true;
+    document.getElementById('uploadStatus').textContent = `Procesando ${file.name}...`;
+
+    try {
+      const pdfData = await extractPdfData(file);
+      const fileUrl = URL.createObjectURL(file);
+
+      updateDocumentContext(
+        {
+          title: humanizeFileName(file.name),
+          fileUrl,
+          pages: pdfData.pages,
+          topic: 'PDF cargado por el usuario',
+          summary: pdfData.summary,
+          highlights: pdfData.highlights,
+          extractedText: pdfData.extractedText,
+          sourceLabel: 'PDF cargado',
+          uploadStatus: `Archivo listo: ${file.name}. Gemini respondera con este PDF como contexto.`
+        },
+        { isObjectUrl: true }
+      );
+
+      addMessage(`PDF cargado: ${file.name}. Ya puedes consultarme sobre este documento.`, 'assistant');
+    } catch (error) {
+      document.getElementById('uploadStatus').textContent =
+        `No se pudo procesar el PDF: ${error.message}`;
+      addMessage(`No pude leer el PDF seleccionado: ${error.message}`, 'assistant');
+    } finally {
+      pdfUpload.disabled = false;
+      event.target.value = '';
+    }
+  });
+}
+
 function refreshData() {
   liveData = getLiveData();
   updateClock();
@@ -246,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateKPIs();
   renderCharts();
   initChat();
+  initPdfUpload();
 
   document.getElementById('searchInput').addEventListener('input', (event) => {
     renderCatalog(event.target.value);
