@@ -162,9 +162,9 @@ function setChatAvailability(enabled) {
 
   chatInput.disabled = !enabled;
   sendBtn.disabled = !enabled;
-  chatInput.placeholder = enabled
+  chatInput.placeholder = hasActiveDocument()
     ? 'Ej: Que dice el PDF sobre prestamos temporales?'
-    : 'Sube un PDF para habilitar el chat';
+    : 'Ej: Que libros hay disponibles en el catalogo?';
 }
 
 function updatePdfControls() {
@@ -409,7 +409,7 @@ function renderDocumentContext() {
     highlights.appendChild(div);
   });
 
-  setChatAvailability(hasActiveDocument());
+  setChatAvailability(true);
 
   if (hasActiveDocument()) {
     loadPdfPreview(documentContext.fileUrl);
@@ -485,29 +485,23 @@ function addMessage(text, sender) {
 }
 
 function buildAIContext() {
-  if (!hasActiveDocument()) {
-    return null;
-  }
-
   return {
     liveMetrics: liveData,
     catalogSnapshot: catalog,
-    document: {
-      title: documentContext.title,
-      summary: documentContext.summary,
-      topic: documentContext.topic,
-      pages: documentContext.pages,
-      highlights: documentContext.highlights,
-      extractedText: documentContext.extractedText || 'No se pudo extraer texto del PDF actual.'
-    }
+    document: hasActiveDocument()
+      ? {
+          title: documentContext.title,
+          summary: documentContext.summary,
+          topic: documentContext.topic,
+          pages: documentContext.pages,
+          highlights: documentContext.highlights,
+          extractedText: documentContext.extractedText || 'No se pudo extraer texto del PDF actual.'
+        }
+      : null
   };
 }
 
 async function askAI(question) {
-  if (!hasActiveDocument()) {
-    throw new Error('Primero sube un PDF para activar el analisis del documento.');
-  }
-
   let res;
 
   try {
@@ -562,7 +556,7 @@ function initChat() {
   const chatInput = document.getElementById('chatInput');
 
   addMessage(
-    'No hay ningun PDF activo. Sube un archivo para habilitar la lectura y las consultas con IA.',
+    'Puedes consultar el catalogo y las metricas aunque no hayas subido un PDF. Si cargas uno, tambien respondere con base en ese documento.',
     'assistant'
   );
 
@@ -574,7 +568,12 @@ function initChat() {
     chatInput.value = '';
     sendBtn.disabled = true;
 
-    const loadingMsg = addMessage('Consultando el PDF activo y las metricas del dashboard...', 'assistant');
+    const loadingMsg = addMessage(
+      hasActiveDocument()
+        ? 'Consultando el PDF activo y las metricas del dashboard...'
+        : 'Consultando el catalogo y las metricas del dashboard...',
+      'assistant'
+    );
 
     try {
       const reply = await askAI(text);
