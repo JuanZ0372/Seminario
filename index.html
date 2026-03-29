@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biblioteca Virtual Universitaria</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Configuracion</h2>
+
+      <div class="card sidebar-card">
+        <p class="muted">
+          La clave de Gemini se guarda en variables de entorno de Netlify.
+        </p>
+      </div>
+
+      <div class="card sidebar-card">
+        <h3>Estado del sistema</h3>
+        <p id="server-status" class="ok">Servidor: Activo</p>
+        <p class="muted">Ultima actualizacion: <span id="last-update">--:--:--</span></p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="hero">
+        <span class="eyebrow">Dashboard academico</span>
+        <h1>Biblioteca Virtual Universitaria</h1>
+        <p>Panel interactivo con metricas, catalogo y un bibliotecario IA que responde con el contexto de un PDF incrustado.</p>
+      </header>
+
+      <section class="kpis">
+        <div class="kpi">
+          <span>Libros totales</span>
+          <strong id="kpi-books">125,400</strong>
+          <small>+12 hoy</small>
+        </div>
+        <div class="kpi">
+          <span>Usuarios activos</span>
+          <strong id="kpi-users">0</strong>
+          <small id="kpi-users-change">0%</small>
+        </div>
+        <div class="kpi">
+          <span>Descargas (24h)</span>
+          <strong id="kpi-downloads">0</strong>
+          <small>15%</small>
+        </div>
+        <div class="kpi">
+          <span>Saturacion servidor</span>
+          <strong id="kpi-server">0%</strong>
+          <small>Baja</small>
+        </div>
+      </section>
+
+      <section class="tabs">
+        <div class="tab-buttons">
+          <button class="tab-btn active" data-tab="stats">Estadisticas en vivo</button>
+          <button class="tab-btn" data-tab="catalog">Buscador de catalogo</button>
+          <button class="tab-btn" data-tab="ai">Bibliotecario IA</button>
+        </div>
+
+        <div class="tab-content active" id="tab-stats">
+          <div class="charts">
+            <div class="chart-card">
+              <div id="barChart"></div>
+            </div>
+            <div class="chart-card">
+              <div id="pieChart"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-catalog">
+          <div class="card">
+            <h3>Explorar repositorio digital</h3>
+            <input type="text" id="searchInput" placeholder="Busca por titulo, autor o ISBN..." />
+            <div class="table-wrap">
+              <table id="catalogTable">
+                <thead>
+                  <tr>
+                    <th>Titulo</th>
+                    <th>Autor</th>
+                    <th>Estado</th>
+                    <th>Formato</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-ai">
+          <div class="split-view">
+            <section class="card document-card">
+              <div class="panel-top">
+                <div>
+                  <span class="eyebrow">Documento base</span>
+                  <h3 id="doc-title">Guia del Repositorio Digital Universitario</h3>
+                </div>
+                <a
+                  id="docLink"
+                  class="ghost-link"
+                  href="assets/guia-biblioteca-virtual.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Abrir PDF
+                </a>
+              </div>
+
+              <p id="doc-description" class="muted"></p>
+
+              <div class="document-meta">
+                <span id="doc-pages">1 pagina</span>
+                <span id="doc-topic">Repositorio digital</span>
+                <span>Contexto enviado a Gemini</span>
+              </div>
+
+              <div class="pdf-frame">
+                <object
+                  id="pdfViewer"
+                  class="pdf-viewer"
+                  data="assets/guia-biblioteca-virtual.pdf"
+                  type="application/pdf"
+                >
+                  <p>
+                    Tu navegador no soporta la vista previa del PDF.
+                    <a href="assets/guia-biblioteca-virtual.pdf" target="_blank" rel="noopener noreferrer">
+                      Abrir documento
+                    </a>
+                  </p>
+                </object>
+              </div>
+
+              <div class="document-notes">
+                <h4>Puntos clave del documento</h4>
+                <div id="documentHighlights" class="highlight-list"></div>
+              </div>
+            </section>
+
+            <section class="card chat-card">
+              <div class="panel-top">
+                <div>
+                  <span class="eyebrow">Chat contextual</span>
+                  <h3>Consulta al Bibliotecario Inteligente</h3>
+                </div>
+                <span class="context-badge">PDF cargado</span>
+              </div>
+
+              <div id="chatBox" class="chat-box"></div>
+
+              <div class="chat-input-row">
+                <input
+                  type="text"
+                  id="chatInput"
+                  placeholder="Ej: Que dice la guia sobre prestamos temporales?"
+                />
+                <button id="sendBtn">Enviar</button>
+              </div>
+
+              <p class="muted">
+                La respuesta se genera desde una funcion segura en Netlify usando las metricas del dashboard y el texto del PDF.
+              </p>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        Auto refresco activado. Los datos se actualizan dinamicamente.
+      </footer>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
