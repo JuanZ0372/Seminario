@@ -1,9 +1,0 @@
-{
-  "name": "biblioteca-virtual-netlify",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "Biblioteca Virtual Universitaria compatible con Netlify",
-  "scripts": {
-    "start": "netlify dev"
-  }
-}
