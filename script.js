@@ -36,6 +36,13 @@ if (window.pdfjsLib) {
 
 let activeDocumentUrl = null;
 let documentContext = createDocumentContext(defaultDocumentContext);
+const pdfViewerState = {
+  pdfDoc: null,
+  currentPage: 1,
+  totalPages: 0,
+  loadRequestId: 0
+};
+let pdfResizeTimeout = null;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -139,6 +146,154 @@ function updateDocumentContext(source, options = {}) {
   renderDocumentContext();
 }
 
+function setPdfViewerMessage(message, isError = false) {
+  const loadingState = document.getElementById('pdfLoadingState');
+  const errorState = document.getElementById('pdfErrorState');
+  const canvas = document.getElementById('pdfCanvas');
+
+  loadingState.textContent = message;
+  loadingState.classList.toggle('hidden', isError);
+  errorState.classList.toggle('hidden', !isError);
+  canvas.classList.toggle('hidden', true);
+}
+
+function updatePdfControls() {
+  const hasDocument = Boolean(pdfViewerState.pdfDoc);
+  const pageIndicator = document.getElementById('pdfPageIndicator');
+  const prevPageBtn = document.getElementById('prevPageBtn');
+  const nextPageBtn = document.getElementById('nextPageBtn');
+
+  pageIndicator.textContent = hasDocument
+    ? `Pagina ${pdfViewerState.currentPage} de ${pdfViewerState.totalPages}`
+    : 'Sin vista previa';
+  prevPageBtn.disabled = !hasDocument || pdfViewerState.currentPage <= 1;
+  nextPageBtn.disabled = !hasDocument || pdfViewerState.currentPage >= pdfViewerState.totalPages;
+}
+
+async function renderPdfPage(pageNumber, requestId = pdfViewerState.loadRequestId) {
+  if (!pdfViewerState.pdfDoc) {
+    return;
+  }
+
+  const canvas = document.getElementById('pdfCanvas');
+  const loadingState = document.getElementById('pdfLoadingState');
+  const errorState = document.getElementById('pdfErrorState');
+  const canvasWrap = document.getElementById('pdfCanvasWrap');
+  const page = await pdfViewerState.pdfDoc.getPage(pageNumber);
+
+  if (requestId !== pdfViewerState.loadRequestId) {
+    return;
+  }
+
+  const baseViewport = page.getViewport({ scale: 1 });
+  const availableWidth = Math.max(canvasWrap.clientWidth - 32, 260);
+  const scale = Math.min(Math.max(availableWidth / baseViewport.width, 0.6), 1.8);
+  const viewport = page.getViewport({ scale });
+  const pixelRatio = window.devicePixelRatio || 1;
+  const context = canvas.getContext('2d');
+
+  canvas.width = Math.floor(viewport.width * pixelRatio);
+  canvas.height = Math.floor(viewport.height * pixelRatio);
+  canvas.style.width = `${Math.floor(viewport.width)}px`;
+  canvas.style.height = `${Math.floor(viewport.height)}px`;
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  loadingState.classList.remove('hidden');
+  loadingState.textContent = `Renderizando pagina ${pageNumber}...`;
+  errorState.classList.add('hidden');
+  canvas.classList.add('hidden');
+
+  await page.render({
+    canvasContext: context,
+    viewport
+  }).promise;
+
+  if (requestId !== pdfViewerState.loadRequestId) {
+    return;
+  }
+
+  pdfViewerState.currentPage = pageNumber;
+  updatePdfControls();
+  loadingState.classList.add('hidden');
+  canvas.classList.remove('hidden');
+}
+
+async function loadPdfPreview(source) {
+  if (!window.pdfjsLib) {
+    setPdfViewerMessage('No se pudo cargar el visor PDF.', true);
+    updatePdfControls();
+    return;
+  }
+
+  const requestId = pdfViewerState.loadRequestId + 1;
+  pdfViewerState.loadRequestId = requestId;
+  pdfViewerState.pdfDoc = null;
+  pdfViewerState.currentPage = 1;
+  pdfViewerState.totalPages = 0;
+  updatePdfControls();
+  setPdfViewerMessage('Cargando vista previa del PDF...');
+
+  try {
+    const loadingTask = window.pdfjsLib.getDocument(source);
+    const pdfDoc = await loadingTask.promise;
+
+    if (requestId !== pdfViewerState.loadRequestId) {
+      return;
+    }
+
+    pdfViewerState.pdfDoc = pdfDoc;
+    pdfViewerState.totalPages = pdfDoc.numPages;
+    pdfViewerState.currentPage = 1;
+    updatePdfControls();
+    await renderPdfPage(1, requestId);
+  } catch (error) {
+    if (requestId !== pdfViewerState.loadRequestId) {
+      return;
+    }
+
+    pdfViewerState.pdfDoc = null;
+    pdfViewerState.totalPages = 0;
+    pdfViewerState.currentPage = 1;
+    updatePdfControls();
+    setPdfViewerMessage('No se pudo generar la vista previa del PDF.', true);
+  }
+}
+
+function changePdfPage(step) {
+  if (!pdfViewerState.pdfDoc) {
+    return;
+  }
+
+  const nextPage = pdfViewerState.currentPage + step;
+  if (nextPage < 1 || nextPage > pdfViewerState.totalPages) {
+    return;
+  }
+
+  renderPdfPage(nextPage);
+}
+
+function initPdfViewerControls() {
+  document.getElementById('prevPageBtn').addEventListener('click', () => {
+    changePdfPage(-1);
+  });
+
+  document.getElementById('nextPageBtn').addEventListener('click', () => {
+    changePdfPage(1);
+  });
+
+  window.addEventListener('resize', () => {
+    if (!pdfViewerState.pdfDoc) {
+      return;
+    }
+
+    window.clearTimeout(pdfResizeTimeout);
+    pdfResizeTimeout = window.setTimeout(() => {
+      renderPdfPage(pdfViewerState.currentPage);
+    }, 150);
+  });
+}
+
 function getLiveData() {
   return categories.map((cat) => ({
     categoria: cat,
@@ -226,7 +381,6 @@ function renderDocumentContext() {
   document.getElementById('doc-topic').textContent = documentContext.topic;
   document.getElementById('docLink').href = documentContext.fileUrl;
   document.getElementById('pdfFallbackLink').href = documentContext.fileUrl;
-  document.getElementById('pdfViewer').data = documentContext.fileUrl;
   document.getElementById('contextBadge').textContent = documentContext.sourceLabel;
   document.getElementById('uploadStatus').textContent = documentContext.uploadStatus;
 
@@ -239,6 +393,8 @@ function renderDocumentContext() {
     div.textContent = item;
     highlights.appendChild(div);
   });
+
+  loadPdfPreview(documentContext.fileUrl);
 }
 
 async function extractPdfData(file) {
@@ -317,19 +473,50 @@ function buildAIContext() {
 }
 
 async function askAI(question) {
-  const res = await fetch('/.netlify/functions/ask-ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: question,
-      contextData: buildAIContext()
-    })
-  });
+  let res;
 
-  const data = await res.json().catch(() => ({}));
+  try {
+    res = await fetch('/api/ask-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: question,
+        contextData: buildAIContext()
+      })
+    });
+  } catch (error) {
+    throw new Error(
+      'No se pudo conectar con la funcion de IA. Ejecuta el proyecto con Netlify o revisa tu despliegue.'
+    );
+  }
+
+  const rawBody = await res.text();
+  let data = {};
+
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch (error) {
+      data = { rawBody };
+    }
+  }
 
   if (!res.ok) {
-    throw new Error(data.error || 'Error desconocido');
+    if (res.status === 404) {
+      throw new Error(
+        'La funcion de IA no existe en esta URL. Inicia el proyecto con `netlify dev` o despliegalo en Netlify.'
+      );
+    }
+
+    throw new Error(
+      data.error ||
+      data.rawBody ||
+      `La funcion de IA fallo con estado HTTP ${res.status}.`
+    );
+  }
+
+  if (!data.reply) {
+    throw new Error('La funcion de IA respondio sin contenido util.');
   }
 
   return data.reply;
@@ -432,6 +619,7 @@ function refreshData() {
 
 document.addEventListener('DOMContentLoaded', () => {
   switchTabs();
+  initPdfViewerControls();
   renderCatalog();
   renderDocumentContext();
   updateClock();

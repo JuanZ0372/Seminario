@@ -139,14 +139,19 @@
               </div>
 
               <div class="pdf-frame">
-                <object
-                  id="pdfViewer"
-                  class="pdf-viewer"
-                  data="assets/guia-biblioteca-virtual.pdf"
-                  type="application/pdf"
-                >
-                  <p>
-                    Tu navegador no soporta la vista previa del PDF.
+                <div class="pdf-toolbar">
+                  <button id="prevPageBtn" class="pdf-nav-btn" type="button">Anterior</button>
+                  <span id="pdfPageIndicator" class="pdf-page-indicator">Pagina 1 de 1</span>
+                  <button id="nextPageBtn" class="pdf-nav-btn" type="button">Siguiente</button>
+                </div>
+
+                <div id="pdfCanvasWrap" class="pdf-canvas-wrap">
+                  <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+                  <div id="pdfLoadingState" class="pdf-loading-state">
+                    Cargando vista previa del PDF...
+                  </div>
+                  <p id="pdfErrorState" class="pdf-error-state hidden">
+                    No se pudo generar la vista previa.
                     <a
                       id="pdfFallbackLink"
                       href="assets/guia-biblioteca-virtual.pdf"
@@ -156,7 +161,7 @@
                       Abrir documento
                     </a>
                   </p>
-                </object>
+                </div>
               </div>
 
               <div class="document-notes">
